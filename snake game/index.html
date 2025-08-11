@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Snake Game by Nguyễn Thế Chung</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #222;
+    color: #fff;
+    text-align: center;
+    margin: 0;
+  }
+  h1 { margin: 10px; }
+  #gameCanvas {
+    background: #000;
+    display: block;
+    margin: 10px auto;
+    border: 2px solid #fff;
+  }
+  #scoreBoard {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+  button {
+    padding: 8px 16px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>🐍 Snake Game By Nguyễn Thế Chung</h1>
+<div id="scoreBoard">
+  Điểm: <span id="score">0</span> | 
+  Kỷ lục: <span id="highScore">0</span>
+</div>
+<canvas id="gameCanvas" width="400" height="400"></canvas><br>
+<button onclick="startGame()">Bắt đầu</button>
+<button onclick="resetGame()">Reset</button>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const box = 20;
+let snake = [];
+let food = {};
+let dx = box;
+let dy = 0;
+let score = 0;
+let highScore = localStorage.getItem("highScore") || 0;
+document.getElementById("highScore").textContent = highScore;
+let game;
+
+function resetGame() {
+  clearInterval(game);
+  snake = [{ x: 9 * box, y: 10 * box }];
+  dx = box;
+  dy = 0;
+  score = 0;
+  document.getElementById("score").textContent = score;
+  spawnFood();
+}
+
+function startGame() {
+  resetGame();
+  let speed = 150;
+  game = setInterval(() => {
+    drawGame();
+    if (score > 0 && score % 5 === 0) {
+      clearInterval(game);
+      speed = Math.max(50, 150 - (score / 5) * 10);
+      game = setInterval(drawGame, speed);
+    }
+  }, 150);
+}
+
+function spawnFood() {
+  food = {
+    x: Math.floor(Math.random() * (canvas.width / box)) * box,
+    y: Math.floor(Math.random() * (canvas.height / box)) * box
+  };
+}
+
+document.addEventListener("keydown", direction);
+function direction(event) {
+  if (event.key === "ArrowLeft" && dx === 0) {
+    dx = -box; dy = 0;
+  } else if (event.key === "ArrowUp" && dy === 0) {
+    dx = 0; dy = -box;
+  } else if (event.key === "ArrowRight" && dx === 0) {
+    dx = box; dy = 0;
+  } else if (event.key === "ArrowDown" && dy === 0) {
+    dx = 0; dy = box;
+  }
+}
+
+function drawGame() {
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Vẽ rắn
+  for (let i = 0; i < snake.length; i++) {
+    ctx.fillStyle = i === 0 ? "lime" : "green";
+    ctx.fillRect(snake[i].x, snake[i].y, box, box);
+    ctx.strokeStyle = "black";
+    ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+  }
+
+  // Vẽ thức ăn
+  ctx.fillStyle = "red";
+  ctx.fillRect(food.x, food.y, box, box);
+
+  let headX = snake[0].x + dx;
+  let headY = snake[0].y + dy;
+
+  // Ăn thức ăn
+  if (headX === food.x && headY === food.y) {
+    score++;
+    document.getElementById("score").textContent = score;
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem("highScore", highScore);
+      document.getElementById("highScore").textContent = highScore;
+    }
+    spawnFood();
+  } else {
+    snake.pop();
+  }
+
+  let newHead = { x: headX, y: headY };
+
+  // Game over nếu đụng tường hoặc chính mình
+  if (
+    headX < 0 || headY < 0 ||
+    headX >= canvas.width || headY >= canvas.height ||
+    collision(newHead, snake)
+  ) {
+    clearInterval(game);
+    alert("💀 Game Over! Điểm: " + score);
+  }
+
+  snake.unshift(newHead);
+}
+
+function collision(head, array) {
+  for (let i = 0; i < array.length; i++) {
+    if (head.x === array[i].x && head.y === array[i].y) {
+      return true;
+    }
+  }
+  return false;
+}
+
+spawnFood();
+resetGame();
+</script>
+
+</body>
+</html>
