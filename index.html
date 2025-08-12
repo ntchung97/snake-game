@@ -312,18 +312,6 @@
     if (!(nextDir.x === -dir.x && nextDir.y === -dir.y)) dir = {...nextDir};
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-
-    (//) walls -> game over (fit for mobile)
-    if (head.x < 0 || head.y < 0 || head.x >= cols || head.y >= rows) {
-      gameOver();
-      return;
-    }
-
-    (//) self collision
-    for (let i=0;i<snake.length;i++){
-      if (snake[i].x === head.x && snake[i].y === head.y){
-        gameOver();
-        return;
       }
     }
 
@@ -520,5 +508,6 @@
 </script>
 </body>
 </html>
+
 
 
