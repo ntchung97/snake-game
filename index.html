@@ -313,13 +313,13 @@
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-    // walls -> game over (fit for mobile)
+    (//) walls -> game over (fit for mobile)
     if (head.x < 0 || head.y < 0 || head.x >= cols || head.y >= rows) {
       gameOver();
       return;
     }
 
-    // self collision
+    (//) self collision
     for (let i=0;i<snake.length;i++){
       if (snake[i].x === head.x && snake[i].y === head.y){
         gameOver();
@@ -352,7 +352,7 @@
     playTone(120,0.25,'sawtooth',0.2);
     // show small overlay using alert? better: small gentle overlay via browser alert (simple)
     setTimeout(()=> {
-      if(confirm('Game Over! Điểm: ' + score + '\nChơi lại?')) {
+      if(confirm('Lêu lêu gà quá! Điểm: ' + score + '\nChơi lại không?')) {
         resetGame();
         start();
       }
@@ -520,4 +520,5 @@
 </script>
 </body>
 </html>
+
 
