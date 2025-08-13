@@ -1,513 +1,597 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Snake by NTC</title>
-<style>
-  :root{
-    --bg:#07121a;
-    --panel:#0d1b26;
-    --accent:#36d399;
-    --muted:#cbd5e1;
-    --btn:#0f1724;
-  }
-  html,body{
-    height:100%;
-    margin:0;
-    background:linear-gradient(180deg,#08121a,#04101a);
-    color:var(--muted);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    -webkit-user-select:none;
-    user-select:none;
-    touch-action: manipulation;
-  }
-
-  /* Safe area handling for iPhone notch */
-  .app {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    height:100vh;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:flex-start;
-    gap:8px;
-  }
-
-  header{
-    width:100%;
-    max-width:900px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:10px 16px;
-    box-sizing:border-box;
-    color:var(--muted);
-  }
-  h1{font-size:18px;margin:0;color:var(--accent)}
-  .hud { text-align:right; font-size:14px; color:var(--muted); }
-
-  /* canvas container keeps aspect 1:1 on phones */
-  .canvas-wrap{
-    width:100%;
-    max-width:900px;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    padding:8px 12px;
-    box-sizing:border-box;
-  }
-
-  canvas{
-    background:linear-gradient(180deg,#071b2a,#04141b);
-    border-radius:12px;
-    box-shadow:0 8px 30px rgba(2,6,23,0.6);
-    touch-action:none;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  /* Controls layout (big buttons for touch) */
-  .touch-area{
-    width:100%;
-    max-width:900px;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:14px;
-    padding:10px 12px 24px 12px;
-    box-sizing:border-box;
-  }
-
-  .dpad{
-    width:220px;
-    max-width:60vw;
-    display:grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 1fr 1fr 1fr;
-    gap:8px;
-    justify-items:center;
-    align-items:center;
-    user-select:none;
-  }
-  .dpad button{
-    width:64px;
-    height:64px;
-    border-radius:12px;
-    border:0;
-    font-size:22px;
-    background:linear-gradient(180deg,#0b1220,#09101a);
-    color: #fff;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
-    -webkit-touch-callout:none;
-  }
-  .dpad .empty{ visibility:hidden; pointer-events:none; background:transparent; box-shadow:none; }
-
-  /* control row (start/pause/reset) */
-  .controls-row{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    justify-content:center;
-    margin:6px 0 18px;
-  }
-  .controls-row button{
-    padding:8px 14px;
-    border-radius:10px;
-    background:var(--btn);
-    color:#e6f6ef;
-    border:0;
-    font-size:15px;
-    box-shadow:0 6px 14px rgba(0,0,0,0.45);
-  }
-
-  /* scoreboard big for phone */
-  .scorebar{
-    display:flex;
-    gap:12px;
-    align-items:center;
-    font-weight:600;
-    color:var(--muted);
-  }
-  .scorebar span.value { color:var(--accent); font-size:16px; }
-
-  /* landscape hint */
-  .rotate-hint{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.7);
-    color:white;
-    z-index:9999;
-    align-items:center;
-    justify-content:center;
-    text-align:center;
-    padding:20px;
-    box-sizing:border-box;
-  }
-
-  @media (orientation:landscape) and (max-width:900px){
-    /* allow canvas to be wider in landscape */
-    .canvas-wrap { padding-bottom:6px; }
-    .dpad{ transform:scale(0.95); }
-  }
-
-  @media (min-width:768px){
-    .dpad button{ width:72px;height:72px;font-size:24px; }
-  }
-
-</style>
-</head>
-<body>
-  <div class="app">
-    <header>
-      <h1>🐍 Rắn (NTC)</h1>
-      <div class="hud scorebar">
-        Điểm: <span id="score" class="value">0</span>
-        <span style="opacity:0.6">|</span>
-        Kỷ lục: <span id="high" class="value">0</span>
-      </div>
-    </header>
-
-    <div class="canvas-wrap">
-      <!-- canvas will be resized by JS to fit screen and be crisp -->
-      <canvas id="c"></canvas>
-    </div>
-
-    <div class="touch-area" style="flex-direction:column;align-items:center;">
-      <div class="dpad" aria-hidden="false">
-        <button id="btn-up"    aria-label="Up">⬆️</button>
-        <button class="empty"  aria-hidden="true"></button>
-        <button id="btn-start" aria-label="Start">▶️</button>
-
-        <button id="btn-left"  aria-label="Left">⬅️</button>
-        <button id="btn-down"  aria-label="Down">⬇️</button>
-        <button id="btn-right" aria-label="Right">➡️</button>
-      </div>
-
-      <div class="controls-row" style="margin-top:8px;">
-        <button id="start-pause">Start</button>
-        <button id="reset">Reset</button>
-        <button id="sound-toggle">🔊</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="rotate-hint" id="rotateHint">
-    <div>
-      <p style="font-size:18px;margin:0 0 8px 0">Best experience in portrait</p>
-      <p style="opacity:0.9;margin:0">Rotate or continue in current orientation</p>
-    </div>
-  </div>
-
-<script>
-(() => {
-  // --- DOM ---
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d', { alpha: false });
-  const scoreEl = document.getElementById('score');
-  const highEl = document.getElementById('high');
-  const startBtn = document.getElementById('start-pause');
-  const resetBtn = document.getElementById('reset');
-  const soundBtn = document.getElementById('sound-toggle');
-
-  const btnUp = document.getElementById('btn-up');
-  const btnDown = document.getElementById('btn-down');
-  const btnLeft = document.getElementById('btn-left');
-  const btnRight = document.getElementById('btn-right');
-  const btnStart = document.getElementById('btn-start');
-
-  // --- Game settings ---
-  let tileSize = 20;            // logical tile px (will scale for DPR)
-  let cols = 20;
-  let rows = 20;
-  let dpr = Math.max(1, window.devicePixelRatio || 1);
-
-  // state
-  let snake = [];
-  let dir = { x: 1, y: 0 };     // current direction unit vector
-  let nextDir = { x: 1, y: 0 }; // queued direction
-  let food = null;
-  let score = 0;
-  let high = parseInt(localStorage.getItem('snakeHigh')||'0',10) || 0;
-  let running = false;
-  let tickRate = 7;            // tiles per second
-  let tickAccum = 0;
-  let lastTime = 0;
-  let audioEnabled = true;
-
-  highEl.textContent = high;
-
-  // small sounds using WebAudio
-  const audioCtx = (typeof AudioContext !== 'undefined') ? new AudioContext() : null;
-  function playTone(freq, duration=0.06, type='sine', vol=0.15){
-    if(!audioEnabled || !audioCtx) return;
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.value = vol;
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start();
-    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-    o.stop(audioCtx.currentTime + duration + 0.02);
-  }
-
-  // --- sizing & responsiveness ---
-  function resizeCanvasToFit(){
-    // We want a square canvas that fits the width of container while leaving room for controls.
-    const maxWidth = Math.min(window.innerWidth, 900);
-    // set logical cols/rows based on device width to keep tiles comfortable
-    const isSmall = window.innerWidth <= 450;
-    tileSize = isSmall ? 18 : 22;
-    cols = Math.floor((Math.min(maxWidth, window.innerWidth - 28)) / tileSize);
-    rows = cols; // keep square grid
-    // compute canvas CSS size (square)
-    const cssSize = cols * tileSize;
-    canvas.style.width = cssSize + 'px';
-    canvas.style.height = cssSize + 'px';
-    // physical pixels for crispness with DPR
-    canvas.width  = Math.round(cssSize * dpr);
-    canvas.height = Math.round(cssSize * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0); // account for DPR in drawing
-  }
-
-  // ensure canvas size on first load and on orientation change
-  window.addEventListener('resize', () => {
-    resizeCanvasToFit();
-    draw(); // redraw
-  });
-
-  // --- game logic ---
-  function resetGame(){
-    snake = [];
-    const mid = Math.floor(cols/2);
-    snake.push({x: mid-1, y: mid});
-    snake.push({x: mid-2, y: mid});
-    snake.push({x: mid-3, y: mid});
-    dir = { x: 1, y: 0 };
-    nextDir = { ...dir };
-    spawnFood();
-    score = 0;
-    tickRate = 7;
-    scoreEl.textContent = score;
-    highEl.textContent = high;
-    running = false;
-    lastTime = 0;
-  }
-
-  function spawnFood(){
-    const taken = new Set(snake.map(p => `${p.x},${p.y}`));
-    let fx, fy, attempts = 0;
-    do {
-      fx = Math.floor(Math.random() * cols);
-      fy = Math.floor(Math.random() * rows);
-      attempts++;
-      if(attempts>2000) break;
-    } while (taken.has(`${fx},${fy}`));
-    food = { x: fx, y: fy };
-  }
-
-  function step(){
-    // apply queued direction if not reversing
-    if (!(nextDir.x === -dir.x && nextDir.y === -dir.y)) dir = {...nextDir};
-
-    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Snake by NTC</title>
+    <style>
+      :root {
+        --bg: #07121a;
+        --panel: #0d1b26;
+        --accent: #36d399;
+        --muted: #cbd5e1;
+        --btn: #0f1724;
       }
-    }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: linear-gradient(180deg, #08121a, #04101a);
+        color: var(--muted);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial;
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+      }
 
-    snake.unshift(head);
+      /* Safe area handling for iPhone notch */
+      .app {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+      }
 
-    // eat food?
-    if (head.x === food.x && head.y === food.y){
-      score++;
-      scoreEl.textContent = score;
-      if (score > high){
-        high = score;
-        localStorage.setItem('snakeHigh', String(high));
+      header {
+        width: 100%;
+        max-width: 900px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px;
+        box-sizing: border-box;
+        color: var(--muted);
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0;
+        color: var(--accent);
+      }
+      .hud {
+        text-align: right;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      /* canvas container keeps aspect 1:1 on phones */
+      .canvas-wrap {
+        width: 100%;
+        max-width: 900px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 8px 12px;
+        box-sizing: border-box;
+      }
+
+      canvas {
+        background: linear-gradient(180deg, #071b2a, #04141b);
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(2, 6, 23, 0.6);
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* Controls layout (big buttons for touch) */
+      .touch-area {
+        width: 100%;
+        max-width: 900px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 12px 24px 12px;
+        box-sizing: border-box;
+      }
+
+      .dpad {
+        width: 220px;
+        max-width: 60vw;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-rows: 1fr 1fr 1fr;
+        gap: 8px;
+        justify-items: center;
+        align-items: center;
+        user-select: none;
+      }
+      .dpad button {
+        width: 64px;
+        height: 64px;
+        border-radius: 12px;
+        border: 0;
+        font-size: 22px;
+        background: linear-gradient(180deg, #0b1220, #09101a);
+        color: #fff;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        -webkit-touch-callout: none;
+      }
+      .dpad .empty {
+        visibility: hidden;
+        pointer-events: none;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      /* control row (start/pause/reset) */
+      .controls-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        margin: 6px 0 18px;
+      }
+      .controls-row button {
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: var(--btn);
+        color: #e6f6ef;
+        border: 0;
+        font-size: 15px;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+      }
+
+      /* scoreboard big for phone */
+      .scorebar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .scorebar span.value {
+        color: var(--accent);
+        font-size: 16px;
+      }
+
+      /* landscape hint */
+      .rotate-hint {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      @media (orientation: landscape) and (max-width: 900px) {
+        /* allow canvas to be wider in landscape */
+        .canvas-wrap {
+          padding-bottom: 6px;
+        }
+        .dpad {
+          transform: scale(0.95);
+        }
+      }
+
+      @media (min-width: 768px) {
+        .dpad button {
+          width: 72px;
+          height: 72px;
+          font-size: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>🐍 Snake NTC</h1>
+        <div class="hud scorebar">
+          Điểm: <span id="score" class="value">0</span>
+          <span style="opacity: 0.6">|</span>
+          Kỷ lục: <span id="high" class="value">0</span>
+        </div>
+      </header>
+
+      <div class="canvas-wrap">
+        <!-- canvas will be resized by JS to fit screen and be crisp -->
+        <canvas id="c"></canvas>
+      </div>
+
+      <div
+        class="touch-area"
+        style="flex-direction: column; align-items: center"
+      >
+        <div class="dpad" aria-hidden="false">
+          <button id="btn-up" aria-label="Up">⬆️</button>
+          <button class="empty" aria-hidden="true"></button>
+          <button id="btn-start" aria-label="Start">▶️</button>
+
+          <button id="btn-left" aria-label="Left">⬅️</button>
+          <button id="btn-down" aria-label="Down">⬇️</button>
+          <button id="btn-right" aria-label="Right">➡️</button>
+        </div>
+
+        <div class="controls-row" style="margin-top: 8px">
+          <button id="start-pause">Start</button>
+          <button id="reset">Reset</button>
+          <button id="sound-toggle">🔊</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rotate-hint" id="rotateHint">
+      <div>
+        <p style="font-size: 18px; margin: 0 0 8px 0">
+          Best experience in portrait
+        </p>
+        <p style="opacity: 0.9; margin: 0">
+          Rotate or continue in current orientation
+        </p>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        // --- DOM ---
+        const canvas = document.getElementById("c");
+        const ctx = canvas.getContext("2d", { alpha: false });
+        const scoreEl = document.getElementById("score");
+        const highEl = document.getElementById("high");
+        const startBtn = document.getElementById("start-pause");
+        const resetBtn = document.getElementById("reset");
+        const soundBtn = document.getElementById("sound-toggle");
+
+        const btnUp = document.getElementById("btn-up");
+        const btnDown = document.getElementById("btn-down");
+        const btnLeft = document.getElementById("btn-left");
+        const btnRight = document.getElementById("btn-right");
+        const btnStart = document.getElementById("btn-start");
+
+        // --- Game settings ---
+        let tileSize = 20; // logical tile px (will scale for DPR)
+        let cols = 20;
+        let rows = 20;
+        let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+        // state
+        let snake = [];
+        let dir = { x: 1, y: 0 }; // current direction unit vector
+        let nextDir = { x: 1, y: 0 }; // queued direction
+        let food = null;
+        let score = 0;
+        let high = parseInt(localStorage.getItem("snakeHigh") || "0", 10) || 0;
+        let running = false;
+        let tickRate = 7; // tiles per second
+        let tickAccum = 0;
+        let lastTime = 0;
+        let audioEnabled = true;
+
         highEl.textContent = high;
-      }
-      spawnFood();
-      playTone(880,0.06,'sine',0.12);
-      // increase speed every 5 points
-      if (score % 5 === 0) tickRate = Math.min(18, tickRate + 1);
-    } else {
-      snake.pop();
-    }
-  }
 
-  function gameOver(){
-    running = false;
-    playTone(120,0.25,'sawtooth',0.2);
-    // show small overlay using alert? better: small gentle overlay via browser alert (simple)
-    setTimeout(()=> {
-      if(confirm('Lêu lêu gà quá! Điểm: ' + score + '\nChơi lại không?')) {
-        resetGame();
-        start();
-      }
-    }, 120);
-  }
+        // small sounds using WebAudio
+        const audioCtx =
+          typeof AudioContext !== "undefined" ? new AudioContext() : null;
+        function playTone(freq, duration = 0.06, type = "sine", vol = 0.15) {
+          if (!audioEnabled || !audioCtx) return;
+          const o = audioCtx.createOscillator();
+          const g = audioCtx.createGain();
+          o.type = type;
+          o.frequency.value = freq;
+          g.gain.value = vol;
+          o.connect(g);
+          g.connect(audioCtx.destination);
+          o.start();
+          g.gain.exponentialRampToValueAtTime(
+            0.0001,
+            audioCtx.currentTime + duration
+          );
+          o.stop(audioCtx.currentTime + duration + 0.02);
+        }
 
-  // --- rendering ---
-  function draw(){
-    // clear (CSS pixel space due to ctx transform)
-    ctx.clearRect(0,0, canvas.width/dpr, canvas.height/dpr);
+        // --- sizing & responsiveness ---
+        function resizeCanvasToFit() {
+          // We want a square canvas that fits the width of container while leaving room for controls.
+          const maxWidth = Math.min(window.innerWidth, 900);
+          // set logical cols/rows based on device width to keep tiles comfortable
+          const isSmall = window.innerWidth <= 450;
+          tileSize = isSmall ? 18 : 22;
+          cols = Math.floor(
+            Math.min(maxWidth, window.innerWidth - 28) / tileSize
+          );
+          rows = cols; // keep square grid
+          // compute canvas CSS size (square)
+          const cssSize = cols * tileSize;
+          canvas.style.width = cssSize + "px";
+          canvas.style.height = cssSize + "px";
+          // physical pixels for crispness with DPR
+          canvas.width = Math.round(cssSize * dpr);
+          canvas.height = Math.round(cssSize * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // account for DPR in drawing
+        }
 
-    // background
-    const size = cols * tileSize;
-    const g = ctx.createLinearGradient(0,0,0,size);
-    g.addColorStop(0,'#071b2a'); g.addColorStop(1,'#04131a');
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,size,size);
+        // ensure canvas size on first load and on orientation change
+        window.addEventListener("resize", () => {
+          resizeCanvasToFit();
+          draw(); // redraw
+        });
 
-    // grid subtle
-    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
-    ctx.lineWidth = 1;
-    for(let x=0;x<=cols;x++){
-      ctx.beginPath();
-      ctx.moveTo(x*tileSize + 0.5, 0);
-      ctx.lineTo(x*tileSize + 0.5, size);
-      ctx.stroke();
-    }
-    for(let y=0;y<=rows;y++){
-      ctx.beginPath();
-      ctx.moveTo(0, y*tileSize + 0.5);
-      ctx.lineTo(size, y*tileSize + 0.5);
-      ctx.stroke();
-    }
+        // --- game logic ---
+        function resetGame() {
+          snake = [];
+          const mid = Math.floor(cols / 2);
+          snake.push({ x: mid - 1, y: mid });
+          snake.push({ x: mid - 2, y: mid });
+          snake.push({ x: mid - 3, y: mid });
+          dir = { x: 1, y: 0 };
+          nextDir = { ...dir };
+          spawnFood();
+          score = 0;
+          tickRate = 7;
+          scoreEl.textContent = score;
+          highEl.textContent = high;
+          running = false;
+          lastTime = 0;
+        }
 
-    // draw food
-    if (food){
-      ctx.fillStyle = '#ff6b6b';
-      roundRectFill(food.x*tileSize + 3, food.y*tileSize + 3, tileSize-6, tileSize-6, 6);
-    }
+        function spawnFood() {
+          const taken = new Set(snake.map((p) => `${p.x},${p.y}`));
+          let fx,
+            fy,
+            attempts = 0;
+          do {
+            fx = Math.floor(Math.random() * cols);
+            fy = Math.floor(Math.random() * rows);
+            attempts++;
+            if (attempts > 2000) break;
+          } while (taken.has(`${fx},${fy}`));
+          food = { x: fx, y: fy };
+        }
 
-    // draw snake
-    for (let i=0;i<snake.length;i++){
-      const p = snake[i];
-      const x = p.x*tileSize, y = p.y*tileSize;
-      if (i===0){
-        ctx.fillStyle = '#36d399';
-        roundRectFill(x+1, y+1, tileSize-2, tileSize-2, 6);
-      } else {
-        ctx.fillStyle = `rgba(54,211,153,${0.95 - (i/snake.length)*0.6})`;
-        roundRectFill(x+1, y+1, tileSize-2, tileSize-2, 5);
-      }
-    }
-  }
+        function step() {
+          // apply queued direction if not reversing
+          if (!(nextDir.x === -dir.x && nextDir.y === -dir.y))
+            dir = { ...nextDir };
 
-  function roundRectFill(x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r);
-    ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r);
-    ctx.arcTo(x,y,x+w,y,r);
-    ctx.closePath();
-    ctx.fill();
-  }
+          const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-  // --- game loop (using rAF + accumulator for fixed ticks) ---
-  function loop(ts){
-    if(!lastTime) lastTime = ts;
-    const delta = (ts - lastTime) / 1000;
-    lastTime = ts;
-    if (running){
-      tickAccum += delta;
-      const interval = 1 / tickRate;
-      while(tickAccum >= interval){
-        step();
-        tickAccum -= interval;
-      }
-    }
-    draw();
-    requestAnimationFrame(loop);
-  }
+          // walls -> game over (fit for mobile)
+          if (head.x < 0 || head.y < 0 || head.x >= cols || head.y >= rows) {
+            gameOver();
+            return;
+          }
 
-  // --- controls (keyboard + touch) ---
-  function setDirection(dx,dy){
-    // prevent immediate reverse
-    if (dx === -dir.x && dy === -dir.y) return;
-    nextDir = { x: dx, y: dy };
-    // small haptic/vibrate if available
-    if (navigator.vibrate) navigator.vibrate(10);
-  }
+          // self collision
+          for (let i = 0; i < snake.length; i++) {
+            if (snake[i].x === head.x && snake[i].y === head.y) {
+              gameOver();
+              return;
+            }
+          }
 
-  // Map arrow keys and WASD
-  window.addEventListener('keydown', (e)=>{
-    if (['ArrowUp','w','W'].includes(e.key)) setDirection(0,-1);
-    if (['ArrowDown','s','S'].includes(e.key)) setDirection(0,1);
-    if (['ArrowLeft','a','A'].includes(e.key)) setDirection(-1,0);
-    if (['ArrowRight','d','D'].includes(e.key)) setDirection(1,0);
-    if (e.key === ' ' || e.key === 'Enter') toggleStartPause();
-  });
+          snake.unshift(head);
 
-  // Bind touch buttons - use touchstart to set direction
-  function bindBtn(btn, dx, dy){
-    const start = (ev) => { ev.preventDefault(); setDirection(dx,dy); };
-    btn.addEventListener('touchstart', start, {passive:false});
-    btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); setDirection(dx,dy); });
-  }
-  bindBtn(btnUp, 0, -1);
-  bindBtn(btnDown, 0, 1);
-  bindBtn(btnLeft, -1, 0);
-  bindBtn(btnRight, 1, 0);
-  // quick start from central start button
-  btnStart.addEventListener('touchstart', (e)=>{ e.preventDefault(); if(!running) start(); });
-  btnStart.addEventListener('mousedown', (e)=>{ e.preventDefault(); if(!running) start(); });
+          // eat food?
+          if (head.x === food.x && head.y === food.y) {
+            score++;
+            scoreEl.textContent = score;
+            if (score > high) {
+              high = score;
+              localStorage.setItem("snakeHigh", String(high));
+              highEl.textContent = high;
+            }
+            spawnFood();
+            playTone(880, 0.06, "sine", 0.12);
+            // increase speed every 5 points
+            if (score % 5 === 0) tickRate = Math.min(18, tickRate + 1);
+          } else {
+            snake.pop();
+          }
+        }
 
-  // start/pause/reset
-  function start(){
-    if (!running){
-      running = true;
-      lastTime = 0;
-      // resume audio context on first gesture (required on iOS)
-      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-      startBtn.textContent = 'Pause';
-    }
-  }
-  function pause(){
-    running = false;
-    startBtn.textContent = 'Start';
-  }
-  function toggleStartPause(){
-    running ? pause() : start();
-  }
-  startBtn.addEventListener('click', () => toggleStartPause());
-  resetBtn.addEventListener('click', () => { resetGame(); });
+        function gameOver() {
+          running = false;
+          playTone(120, 0.25, "sawtooth", 0.2);
+          // show small overlay using alert? better: small gentle overlay via browser alert (simple)
+          setTimeout(() => {
+            if (confirm("Game Over! Điểm: " + score + "\nChơi lại?")) {
+              resetGame();
+              start();
+            }
+          }, 120);
+        }
 
-  soundBtn.addEventListener('click', () => {
-    audioEnabled = !audioEnabled;
-    soundBtn.textContent = audioEnabled ? '🔊' : '🔈';
-  });
+        // --- rendering ---
+        function draw() {
+          // clear (CSS pixel space due to ctx transform)
+          ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
 
-  // prevent scrolling / pinch interference
-  document.body.addEventListener('touchmove', (e)=> {
-    // When touching the canvas area prevent default to avoid page scroll while playing
-    if (e.target === canvas || e.target.closest('.dpad')) e.preventDefault();
-  }, { passive:false });
+          // background
+          const size = cols * tileSize;
+          const g = ctx.createLinearGradient(0, 0, 0, size);
+          g.addColorStop(0, "#071b2a");
+          g.addColorStop(1, "#04131a");
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, size, size);
 
-  // --- initialization ---
-  function init(){
-    dpr = Math.max(1, window.devicePixelRatio || 1);
-    resizeCanvasToFit();
-    resetGame();
-    requestAnimationFrame(loop);
-    // show rotate hint on first load on small screens? optional
-    setTimeout(()=> {
-      const rh = document.getElementById('rotateHint');
-      rh.style.display = 'none';
-    }, 1200);
-  }
+          // grid subtle
+          ctx.strokeStyle = "rgba(255,255,255,0.02)";
+          ctx.lineWidth = 1;
+          for (let x = 0; x <= cols; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * tileSize + 0.5, 0);
+            ctx.lineTo(x * tileSize + 0.5, size);
+            ctx.stroke();
+          }
+          for (let y = 0; y <= rows; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * tileSize + 0.5);
+            ctx.lineTo(size, y * tileSize + 0.5);
+            ctx.stroke();
+          }
 
-  // call init
-  init();
+          // draw food
+          if (food) {
+            ctx.fillStyle = "#ff6b6b";
+            roundRectFill(
+              food.x * tileSize + 3,
+              food.y * tileSize + 3,
+              tileSize - 6,
+              tileSize - 6,
+              6
+            );
+          }
 
-  // Expose functions for debug (optional)
-  window.SNAKE = { resetGame, start, pause, setDirection };
-})();
-</script>
-</body>
+          // draw snake
+          for (let i = 0; i < snake.length; i++) {
+            const p = snake[i];
+            const x = p.x * tileSize,
+              y = p.y * tileSize;
+            if (i === 0) {
+              ctx.fillStyle = "#36d399";
+              roundRectFill(x + 1, y + 1, tileSize - 2, tileSize - 2, 6);
+            } else {
+              ctx.fillStyle = `rgba(54,211,153,${
+                0.95 - (i / snake.length) * 0.6
+              })`;
+              roundRectFill(x + 1, y + 1, tileSize - 2, tileSize - 2, 5);
+            }
+          }
+        }
+
+        function roundRectFill(x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // --- game loop (using rAF + accumulator for fixed ticks) ---
+        function loop(ts) {
+          if (!lastTime) lastTime = ts;
+          const delta = (ts - lastTime) / 1000;
+          lastTime = ts;
+          if (running) {
+            tickAccum += delta;
+            const interval = 1 / tickRate;
+            while (tickAccum >= interval) {
+              step();
+              tickAccum -= interval;
+            }
+          }
+          draw();
+          requestAnimationFrame(loop);
+        }
+
+        // --- controls (keyboard + touch) ---
+        function setDirection(dx, dy) {
+          // prevent immediate reverse
+          if (dx === -dir.x && dy === -dir.y) return;
+          nextDir = { x: dx, y: dy };
+          // small haptic/vibrate if available
+          if (navigator.vibrate) navigator.vibrate(10);
+        }
+
+        // Map arrow keys and WASD
+        window.addEventListener("keydown", (e) => {
+          if (["ArrowUp", "w", "W"].includes(e.key)) setDirection(0, -1);
+          if (["ArrowDown", "s", "S"].includes(e.key)) setDirection(0, 1);
+          if (["ArrowLeft", "a", "A"].includes(e.key)) setDirection(-1, 0);
+          if (["ArrowRight", "d", "D"].includes(e.key)) setDirection(1, 0);
+          if (e.key === " " || e.key === "Enter") toggleStartPause();
+        });
+
+        // Bind touch buttons - use touchstart to set direction
+        function bindBtn(btn, dx, dy) {
+          const start = (ev) => {
+            ev.preventDefault();
+            setDirection(dx, dy);
+          };
+          btn.addEventListener("touchstart", start, { passive: false });
+          btn.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            setDirection(dx, dy);
+          });
+        }
+        bindBtn(btnUp, 0, -1);
+        bindBtn(btnDown, 0, 1);
+        bindBtn(btnLeft, -1, 0);
+        bindBtn(btnRight, 1, 0);
+        // quick start from central start button
+        btnStart.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          if (!running) start();
+        });
+        btnStart.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          if (!running) start();
+        });
+
+        // start/pause/reset
+        function start() {
+          if (!running) {
+            running = true;
+            lastTime = 0;
+            // resume audio context on first gesture (required on iOS)
+            if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+            startBtn.textContent = "Pause";
+          }
+        }
+        function pause() {
+          running = false;
+          startBtn.textContent = "Start";
+        }
+        function toggleStartPause() {
+          running ? pause() : start();
+        }
+        startBtn.addEventListener("click", () => toggleStartPause());
+        resetBtn.addEventListener("click", () => {
+          resetGame();
+        });
+
+        soundBtn.addEventListener("click", () => {
+          audioEnabled = !audioEnabled;
+          soundBtn.textContent = audioEnabled ? "🔊" : "🔈";
+        });
+
+        // prevent scrolling / pinch interference
+        document.body.addEventListener(
+          "touchmove",
+          (e) => {
+            // When touching the canvas area prevent default to avoid page scroll while playing
+            if (e.target === canvas || e.target.closest(".dpad"))
+              e.preventDefault();
+          },
+          { passive: false }
+        );
+
+        // --- initialization ---
+        function init() {
+          dpr = Math.max(1, window.devicePixelRatio || 1);
+          resizeCanvasToFit();
+          resetGame();
+          requestAnimationFrame(loop);
+          // show rotate hint on first load on small screens? optional
+          setTimeout(() => {
+            const rh = document.getElementById("rotateHint");
+            rh.style.display = "none";
+          }, 1200);
+        }
+
+        // call init
+        init();
+
+        // Expose functions for debug (optional)
+        window.SNAKE = { resetGame, start, pause, setDirection };
+      })();
+    </script>
+  </body>
 </html>
-
-
-
